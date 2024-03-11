@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Card Game</title>
+
+    <style>
+        .container {
+            text-align: center;
+            margin-top: 50px;
+        }
+
+
+        #game-container {
+            margin-top: 20px;
+        }
+
+
+        .card {
+            display: inline-block;
+            border: 1px solid #000;
+            padding: 10px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+
+        #player-cards {
+            margin-top: 20px;
+        }
+
+
+        #sum {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+
+        #player-cards-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+
+        .player-card {
+            border: 1px solid #000;
+            padding: 10px;
+            margin: 5px;
+        }
+
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h4 id="showUsername">who ?</h4>
+
+
+    <div class="container">
+
+        <h1>Card Game</h1>
+        <div id="result"></div>
+        <div id="game-container">
+            <!-- การ์ดจะถูกสร้างขึ้นที่นี่ -->
+        </div>
+        <div id="player-cards" class="hidden">
+            <!-- การ์ดที่ผู้เล่นเลือกจะแสดงที่นี่ -->
+            <div id="player-cards-row"></div>
+        </div>
+        <!-- แสดงผลรวมของการ์ด -->
+        <div id="sum" class="hidden">
+            <!-- ผลรวมของการ์ดจะแสดงที่นี่ -->
+        </div>
+        <button id="start-game">Start Game</button>
+        <button id="play-game" style="display:none">เข้าสู่เกม</button>
+    </div>
+    <script type="module" defer>
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.12.0/firebase-app.js";
+        import { getDatabase, set, push, ref, onValue, remove } from "https://www.gstatic.com/firebasejs/9.12.0/firebase-database.js";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+
+        // Your web app's Firebase configuration
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        const firebaseConfig = {
+            apiKey: "",
+            authDomain: "",
+            databaseURL: "",
+            projectId: "",
+            storageBucket: "",
+            messagingSenderId: "",
+            appId: "",
+            measurementId: ""
+        };
+
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // สร้างอาร์เรย์เพื่อเก็บการ์ด
+        const cards = [];
+        // สร้างอาร์เรย์สำหรับผู้เล่น 2 คน
+        const players = [[], []];
+        // ตัวแปรเก็บดัชนีของผู้เล่นปัจจุบัน
+        let currentPlayerIndex = 0;
+        let gameStarted = false;
+        let playersReady = false;
+
+        const playersRef = ref(db, 'players');
+        onValue(playersRef, (snapshot) => {
+            const players = snapshot.val();
+            let playerCount = 0;
+
+            for (let key in players) {
+                playerCount++;
+            }
+            const resultElement = document.getElementById('result');
+            resultElement.textContent = `ผู้เล่นทั้งหมด: ${playerCount} คน`;
+        });
+
+        if (!gameStarted) {
+            gameStarted = true;
+
+            // สร้างการ์ด
+            for (let i = 1; i <= 4; i++) {
+                for (let j = 1; j <= 5; j++) { // แต่ละการ์ดปรากฏ 5 ครั้ง
+                    cards.push(i);
+                }
+            }
+
+            // สับการ์ด
+            cards.sort(() => Math.random() - 0.5);
+
+            // เคลียร์การ์ดของผู้เล่น
+            players.forEach(player => player.length = 0);
+
+            // แจกการ์ด 7 ใบให้แต่ละผู้เล่น
+            for (let i = 0; i < 7; i++) {
+                players.forEach(player => player.push(cards.pop()));
+            }
+
+
+        }
+        function displayPlayerCards(cards) {
+            const playerCardsRow = document.getElementById('player-cards-row');
+            playerCardsRow.innerHTML = ''; // เคลียร์เนื้อหาเก่าทิ้ง
+
+            cards.forEach(card => {
+                const cardDiv = document.createElement('div');
+                cardDiv.classList.add('player-card');
+                cardDiv.textContent = card;
+                playerCardsRow.appendChild(cardDiv);
+            });
+
+            // แสดงหน้าเพจที่มีการ์ดของผู้เล่น
+            document.getElementById('player-cards').classList.remove('hidden');
+        }
+        function fetchPlayerCards() {
+            const playerName = document.querySelector('#showUsername').innerHTML;
+            const playerRef = ref(db, 'players');
+            onValue(playerRef, (snapshot) => {
+                const players = snapshot.val();
+                if (players && playerName in players) {
+                    const playerCards = players[playerName].cards;
+                    // ทำการแสดงผลการ์ดของผู้เล่นที่ได้รับจาก Firebase
+                    displayPlayerCards(playerCards);
+                } else {
+                    console.log('ไม่พบข้อมูลการ์ดของผู้เล่นในฐานข้อมูล');
+                }
+            });
+        }
+
+        function uploadPlayerData(playerName, cardds) {
+            const playerRef = push(ref(db, 'players'));
+            set(playerRef, {
+                name: playerName,
+                card: cardds
+            });
+
+        }
+        function displayCards() {
+            const playerName = window.prompt('ใส่ชื่อของคุณ: ');
+            document.querySelector('#showUsername').innerHTML = playerName;
+            const cardds = players[currentPlayerIndex];
+            // ส่งข้อมูลผู้เล่นไปยัง Firebase Realtime Database
+            uploadPlayerData(playerName, cardds);
+            const gameContainer = document.getElementById('game-container');
+            gameContainer.innerHTML = '';
+
+            // เพิ่มข้อความให้ผู้เล่นกดเพื่อเริ่มเกม
+            const startMessage = document.createElement('p');
+            startMessage.textContent = "กด 'เข้าสู่เกม' เพื่อเริ่มเกม";
+            gameContainer.appendChild(startMessage);
+
+            // ถ้าผู้เล่นทุกคนได้กดตกลงเข้าร่วมเกมแล้ว
+            if (playersReady) {
+                document.getElementById('play-game').style.display = 'block';
+                const playGameButton = document.getElementById('play-game');
+
+                // เมื่อกดปุ่ม "เข้าสู่เกม" ให้เริ่มเกม
+                playGameButton.addEventListener('click', initializeGame);
+
+            }
+        }
+        // ฟังก์ชันเริ่มต้นเกม
+        function initializeGame() {
+
+
+            const playersRef = ref(db, 'players');
+
+            onValue(playersRef, (snapshot) => {
+                const data = snapshot.val();
+
+                if (data !== null) {
+                    const playerCount = Object.keys(data).length;
+                    console.log("จำนวนผู้เล่นที่เข้าร่วมเกม:", playerCount);
+                    const resultElement = document.getElementById('result');
+                    resultElement.textContent = `ผู้เล่นทั้งหมด: ${playerCount} คน`;
+
+                    if (playerCount >= 2) {
+                        // เริ่มเกมจากผู้เล่นที่เริ่มเกมเสมอ
+                        displayCards2();
+                    } else {
+                        alert('รอผู้เล่นเข้ามาเพิ่ม');
+                    }
+                } else {
+                    alert('ไม่พบข้อมูลผู้เล่น');
+                }
+            });
+
+        }
+
+        // เพิ่มการตรวจสอบว่าผู้เล่นทุกคนได้กดตกลงเข้าร่วมเกมหรือยัง
+        function checkPlayersReady() {
+            // ปุ่มชื่อหาย
+            document.getElementById('start-game').style.display = 'none';
+            // ตรวจสอบว่าทุกคนได้ใส่ชื่อหรือไม่
+            const playerName = document.querySelector('#showUsername').innerHTML;
+            if (playerName) {
+                playersReady = true;
+            } else {
+                alert('กรุณากรอกชื่อของคุณ');
+            }
+
+            // ตรวจสอบว่าทุกคนได้กดตกลงเข้าร่วมเกมหรือยัง
+            // ในกรณีนี้เราสมมติว่ามีผู้เล่นอยู่ 2 คน
+            if (playersReady) {
+                const playerCount = 2; // จำนวนผู้เล่น
+                let readyCount = 0; // จำนวนผู้เล่นที่กดเรียบร้อยแล้ว
+
+                // ตรวจสอบทุกผู้เล่น
+                for (let i = 0; i < playerCount; i++) {
+                    // ในที่นี้เราสมมติว่ามีชื่อของผู้เล่นแล้ว
+                    // คุณสามารถตรวจสอบเพิ่มเติมได้ตามกรณีการใช้งานจริง
+                    readyCount++;
+                }
+
+                // ถ้าผู้เล่นทุกคนกดเรียบร้อยแล้ว
+                if (readyCount === playerCount) {
+                    displayCards(); // แสดงปุ่ม "เข้าสู่เกม"
+                }
+            }
+        }
+
+        // เมื่อกดปุ่ม "Start Game"
+        document.getElementById('start-game').addEventListener('click', checkPlayersReady);
+
+
+        // ฟังก์ชันแสดงการ์ด
+        function displayCards2() {
+            const gameContainer = document.getElementById('game-container');
+            gameContainer.innerHTML = '';
+
+            const currentPlayer = players[currentPlayerIndex];
+            const currentPlayerDiv = document.createElement('div');
+            currentPlayerDiv.textContent = `Player ${currentPlayerIndex + 1}'s Turn - Select a card to play:`;
+
+            currentPlayer.forEach((card, index) => {
+                const cardDiv = document.createElement('div');
+                cardDiv.classList.add('card');
+                cardDiv.textContent = card;
+                cardDiv.addEventListener('click', () => playCard(index));
+                currentPlayerDiv.appendChild(cardDiv);
+
+            });
+
+            gameContainer.appendChild(currentPlayerDiv);
+
+            const sumContainer = document.getElementById('sum');
+            const sum = array.reduce((acc, curr) => acc + curr, 0);
+            sumContainer.textContent = `ผมรวมเเต้ม: ${sum}`;
+
+            // แสดงการ์ดและผลรวมของผู้เล่น
+            document.getElementById('player-cards').classList.remove('hidden');
+            document.getElementById('sum').classList.remove('hidden');
+
+
+            fetchPlayerCards();
+
+        }
+        // ฟังก์ชันสำหรับอัปโหลดชื่อผู้เล่นไปยัง Firebase Realtime Database
+
+        // ฟังก์ชันเเเสดงการ์ด
+        let array = [0]; // สร้างอาเรย์เพื่อเก็บการ์ดที่ผู้เล่นเลือก
+
+        //เเสดงผลการ์ดที่ถูกทิ้ง
+        //ส่วนนี้ใช้ลบข้อมูลจากฐานข้อมู,มีปัญหา
+        function playCard(cardIndex) {
+            const currentPlayer = players[currentPlayerIndex];
+            const card = currentPlayer[cardIndex];
+            currentPlayer.splice(cardIndex, 1);
+
+            // ลบการ์ดออกจาก Firebase Realtime Database
+            const playerName = document.querySelector('#showUsername').innerHTML;
+            const playerRef = ref(db, 'players');
+            onValue(playerRef, (snapshot) => {
+                const playersData = snapshot.val();
+                if (playersData && playerName in playersData) {
+                    const playerCards = playersData[playerName].cards || [];
+
+                    // ตรวจสอบว่าตำแหน่งการ์ดที่ต้องการลบมีอยู่หรือไม่
+                    if (cardIndex < playerCards.length) {
+                        playerCards.splice(cardIndex, 1);
+
+                        // ทำการอัปเดตข้อมูลใน Firebase Realtime Database
+                        set(ref(db, `players/${playerName}/cards`), playerCards)
+                            .then(() => {
+                                console.log(`ลบการ์ดของผู้เล่น ${playerName} ที่เลขที่การ์ด ${card} เรียบร้อยแล้ว`);
+
+                                // หลังจากลบข้อมูลออกจาก Firebase ให้อัปเดตการแสดงผลการ์ดของผู้เล่น
+                                fetchPlayerCards(); // เรียกใช้ฟังก์ชันเพื่อดึงข้อมูลการ์ดของผู้เล่นใหม่
+                            })
+                            .catch((error) => {
+                                console.error("เกิดข้อผิดพลาดในการอัปเดตข้อมูล: ", error);
+                            });
+                    } else {
+                        console.error(`ตำแหน่งการ์ดที่ต้องการลบไม่ถูกต้อง: ${cardIndex}`);
+                    }
+                } else {
+                    console.error(`ไม่พบข้อมูลการ์ดของผู้เล่น ${playerName} ในฐานข้อมูล`);
+                }
+            });
+
+            array.unshift(card);
+
+            console.log(array);
+
+            const sumContainer = document.getElementById('sum');
+            const sum = array.reduce((acc, curr) => acc + curr, 0);
+            sumContainer.textContent = `ผลรวมเเต้ม 1: ${sum}`;
+
+            if (sum === 21) {
+                endGame(`Player ${currentPlayerIndex + 1} wins with `);
+            } else if (sum > 21) {
+                endGame(`Player ${currentPlayerIndex} wins with `);
+            } else {
+                currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+
+            }
+        }
+        function endGame(message) {
+            const sum = array.reduce((acc, curr) => acc + curr, 0);
+            const gameContainer = document.getElementById('game-container');
+            const sumContainer = document.getElementById('sum');
+
+            gameContainer.textContent = message + sum + ' points!';
+            sumContainer.textContent = '';
+            document.getElementById('player-cards').classList.add('hidden');
+            document.getElementById('sum').classList.add('hidden');
+        }
+
+    </script>
+</body>
+
+</html>
